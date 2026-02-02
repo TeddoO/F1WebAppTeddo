@@ -1,5 +1,5 @@
 import React from 'react';
-import { Route, Routes, BrowserRouter as Router } from 'react-router-dom';
+import { Route, Routes, HashRouter as Router } from 'react-router-dom';
 import { AuthProvider } from '@/context/AuthContext';
 import { Toaster } from '@/components/ui/toaster';
 import ScrollToTop from '@/components/ScrollToTop';
@@ -14,7 +14,7 @@ import ProfilePage from '@/pages/ProfilePage';
 function App() {
   return (
     <AuthProvider>
-      <Router basename="/F1WebAppTeddo">
+      <Router>
         <ScrollToTop />
         <Routes>
           <Route path="/" element={<Dashboard />} />
