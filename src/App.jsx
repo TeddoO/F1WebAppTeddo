@@ -14,7 +14,7 @@ import ProfilePage from '@/pages/ProfilePage';
 function App() {
   return (
     <AuthProvider>
-      <Router>
+      <Router basename="/F1WebAppTeddo">
         <ScrollToTop />
         <Routes>
           <Route path="/" element={<Dashboard />} />
@@ -28,7 +28,7 @@ function App() {
         <Toaster />
       </Router>
     </AuthProvider>
-  );
+  );z
 }
 
 export default App;
