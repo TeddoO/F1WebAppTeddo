@@ -28,7 +28,7 @@ function App() {
         <Toaster />
       </Router>
     </AuthProvider>
-  );z
+  );
 }
 
 export default App;
