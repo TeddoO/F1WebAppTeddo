@@ -5,17 +5,27 @@ import { Trophy, TrendingUp, Medal, Award } from 'lucide-react';
 import { raceResults, pointsSystem } from '@/data/f1Data';
 import { useAuth } from '@/context/AuthContext';
 import Layout from '@/components/Layout';
+import { usersService } from '@/services/usersService';
+import { predictionsService } from '@/services/predictionsService';
 
 const LeaderboardPage = () => {
   const { currentUser } = useAuth();
   const [leaderboard, setLeaderboard] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     calculateLeaderboard();
   }, []);
 
-  const calculateLeaderboard = () => {
-    const users = JSON.parse(localStorage.getItem('f1_users') || '[]');
+  const calculateLeaderboard = async () => {
+  try {
+    setLoading(true);
+    
+    // Get all users from Supabase database
+    const users = await usersService.getAllUsers();
+    
+    // Get all predictions from Supabase database
+    const allPredictions = await predictionsService.getAllPredictions();
     
     const userScores = users.map(user => {
       let totalPoints = 0;
@@ -25,49 +35,64 @@ const LeaderboardPage = () => {
       let correctPredictions = 0;
       let totalPredictionAttempts = 0;
 
-      if (user.predictions) {
-        Object.entries(user.predictions).forEach(([raceId, racePreds]) => {
-          const result = raceResults[parseInt(raceId)];
-          if (result) {
-            // Main Race Calculation
-            if (racePreds.main && result.mainRace) {
-               racesPredicted++; // Count race weekend participation
-               const actualPodium = result.mainRace.podium.slice(0, 3).map(p => p.driverId);
-               let correctCount = 0;
-               if (racePreds.main.first === actualPodium[0]) { correctCount++; correctPredictions++; }
-               if (racePreds.main.second === actualPodium[1]) { correctCount++; correctPredictions++; }
-               if (racePreds.main.third === actualPodium[2]) { correctCount++; correctPredictions++; }
-               
-               totalPredictionAttempts += 3;
-               
-               const scoring = pointsSystem.predictionScoring.main;
-               const pointsMap = { 0: 0, 1: scoring.one, 2: scoring.two, 3: scoring.three };
-               
-               const pts = pointsMap[correctCount];
-               mainPoints += pts;
-               totalPoints += pts;
-            }
+      // Get this user's predictions from the array
+      const userPreds = allPredictions.filter(p => p.user_id === user.id);
+      
+      // Group predictions by race
+      const predsByRace = {};
+      userPreds.forEach(p => {
+        if (!predsByRace[p.race_id]) {
+          predsByRace[p.race_id] = {};
+        }
+        predsByRace[p.race_id][p.prediction_type] = {
+          first: p.first_place,
+          second: p.second_place,
+          third: p.third_place
+        };
+      });
+
+      // Calculate scores for each race
+      Object.entries(predsByRace).forEach(([raceId, racePreds]) => {
+        const result = raceResults[parseInt(raceId)];
+        if (result) {
+          // Main Race Calculation
+          if (racePreds.main && result.mainRace) {
+            racesPredicted++;
+            const actualPodium = result.mainRace.podium.slice(0, 3).map(p => p.driverId);
+            let correctCount = 0;
+            if (racePreds.main.first === actualPodium[0]) { correctCount++; correctPredictions++; }
+            if (racePreds.main.second === actualPodium[1]) { correctCount++; correctPredictions++; }
+            if (racePreds.main.third === actualPodium[2]) { correctCount++; correctPredictions++; }
             
-            // Sprint Race Calculation
-            if (racePreds.sprint && result.sprint) {
-               const actualPodium = result.sprint.podium.slice(0, 3).map(p => p.driverId);
-               let correctCount = 0;
-               if (racePreds.sprint.first === actualPodium[0]) { correctCount++; correctPredictions++; }
-               if (racePreds.sprint.second === actualPodium[1]) { correctCount++; correctPredictions++; }
-               if (racePreds.sprint.third === actualPodium[2]) { correctCount++; correctPredictions++; }
-               
-               totalPredictionAttempts += 3;
-               
-               const scoring = pointsSystem.predictionScoring.sprint;
-               const pointsMap = { 0: 0, 1: scoring.one, 2: scoring.two, 3: scoring.three };
-               
-               const pts = pointsMap[correctCount];
-               sprintPoints += pts;
-               totalPoints += pts;
-            }
+            totalPredictionAttempts += 3;
+            
+            const scoring = pointsSystem.predictionScoring.main;
+            const pointsMap = { 0: 0, 1: scoring.one, 2: scoring.two, 3: scoring.three };
+            
+            const pts = pointsMap[correctCount];
+            mainPoints += pts;
+            totalPoints += pts;
           }
-        });
-      }
+     
+          // Sprint Race Calculation
+          if (racePreds.sprint && result.sprint) {
+            const actualPodium = result.sprint.podium.slice(0, 3).map(p => p.driverId);
+            let correctCount = 0;
+            if (racePreds.sprint.first === actualPodium[0]) { correctCount++; correctPredictions++; }
+            if (racePreds.sprint.second === actualPodium[1]) { correctCount++; correctPredictions++; }
+            if (racePreds.sprint.third === actualPodium[2]) { correctCount++; correctPredictions++; }
+            
+            totalPredictionAttempts += 3;
+            
+            const scoring = pointsSystem.predictionScoring.sprint;
+            const pointsMap = { 0: 0, 1: scoring.one, 2: scoring.two, 3: scoring.three };
+            
+            const pts = pointsMap[correctCount];
+            sprintPoints += pts;
+            totalPoints += pts;
+          }
+        }
+      });
 
       const accuracy = totalPredictionAttempts > 0 
         ? Math.round((correctPredictions / totalPredictionAttempts) * 100) 
@@ -83,10 +108,16 @@ const LeaderboardPage = () => {
       };
     });
 
-    // Sort by total points
+    // Sort by total points (highest first)
     userScores.sort((a, b) => b.totalPoints - a.totalPoints);
     setLeaderboard(userScores);
-  };
+    
+  } catch (error) {
+    console.error('Error loading leaderboard:', error);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const getRankIcon = (index) => {
     switch(index) {
@@ -99,6 +130,15 @@ const LeaderboardPage = () => {
 
   return (
     <Layout>
+      {loading ? (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-500 mx-auto mb-4"></div>
+          <p className="text-white">Loading leaderboard...</p>
+        </div>
+      </div>
+    ) : (
+      <>
       <Helmet>
         <title>Leaderboard - F1 Predictions 2026</title>
         <meta name="description" content="See how you rank against other F1 prediction players" />
@@ -189,9 +229,11 @@ const LeaderboardPage = () => {
             </div>
           )}
         </motion.div>
-      </div>
-    </Layout>
-  );
+        </div>
+      </>
+    )}
+  </Layout>
+);
 };
 
 export default LeaderboardPage;

@@ -1,4 +1,7 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { supabase } from '@/lib/supabase';
+import { usersService } from '@/services/usersService';
+import { predictionsService } from '@/services/predictionsService';
 
 const AuthContext = createContext();
 
@@ -10,98 +13,170 @@ export const useAuth = () => {
   return context;
 };
 
-// Simple hash function for password (for demo purposes)
-const simpleHash = (str) => {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
-  }
-  return hash.toString(36);
-};
-
 export const AuthProvider = ({ children }) => {
   const [currentUser, setCurrentUser] = useState(null);
+  const [userProfile, setUserProfile] = useState(null);
   const [loading, setLoading] = useState(true);
 
+  // Check for existing session on app load
   useEffect(() => {
-    // Check for logged in user
-    const loggedInUser = localStorage.getItem('f1_current_user');
-    if (loggedInUser) {
-      setCurrentUser(JSON.parse(loggedInUser));
-    }
-    setLoading(false);
+    checkUser();
+    
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (session?.user) {
+          setCurrentUser(session.user);
+          await loadUserProfile(session.user.id);
+        } else {
+          setCurrentUser(null);
+          setUserProfile(null);
+        }
+        setLoading(false);
+      }
+    );
+
+    return () => subscription.unsubscribe();
   }, []);
 
-  const register = (username, password, championDriver, championConstructor) => {
-    // Get existing users
-    const users = JSON.parse(localStorage.getItem('f1_users') || '[]');
-    
-    // Check if username exists
-    if (users.find(u => u.username === username)) {
+  const checkUser = async () => {
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setCurrentUser(session.user);
+        await loadUserProfile(session.user.id);
+      }
+    } catch (error) {
+      console.error('Error checking user:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadUserProfile = async (userId) => {
+    try {
+      const profile = await usersService.getUserById(userId);
+      if (profile) {
+        // Also load their predictions
+        const predictions = await predictionsService.getUserPredictions(userId);
+        
+        // Convert predictions array to object format (like old localStorage)
+        const predictionsObject = {};
+        predictions.forEach(p => {
+          if (!predictionsObject[p.race_id]) {
+            predictionsObject[p.race_id] = {};
+          }
+          predictionsObject[p.race_id][p.prediction_type] = {
+            first: p.first_place,
+            second: p.second_place,
+            third: p.third_place,
+            timestamp: p.updated_at
+          };
+        });
+
+        setUserProfile({
+          ...profile,
+          predictions: predictionsObject,
+          // Map database fields to your component's expected names
+          championDriver: profile.champion_driver_id,
+          championConstructor: profile.champion_constructor_id,
+          username: profile.username
+        });
+      }
+    } catch (error) {
+      console.error('Error loading profile:', error);
+    }
+  };
+
+  const register = async (email, password, username, championDriver, championConstructor) => {
+    // Check if username is taken
+    const existingUser = await usersService.getUserByUsername(username);
+    if (existingUser) {
       throw new Error('Username already exists');
     }
 
-    // Create new user
-    const newUser = {
-      id: Date.now().toString(),
+    // Create auth account
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+    });
+
+    if (error) throw error;
+
+    // Create user profile
+    await usersService.createUser(
+      data.user.id,
       username,
-      password: simpleHash(password),
+      email,
       championDriver,
-      championConstructor,
-      createdAt: new Date().toISOString(),
-      predictions: {},
-      totalPoints: 0
-    };
+      championConstructor
+    );
 
-    // Save user
-    users.push(newUser);
-    localStorage.setItem('f1_users', JSON.stringify(users));
+    // Load the profile
+    await loadUserProfile(data.user.id);
 
-    // Log in user
-    const userWithoutPassword = { ...newUser };
-    delete userWithoutPassword.password;
-    setCurrentUser(userWithoutPassword);
-    localStorage.setItem('f1_current_user', JSON.stringify(userWithoutPassword));
-
-    return userWithoutPassword;
+    return data.user;
   };
 
-  const login = (username, password) => {
-    const users = JSON.parse(localStorage.getItem('f1_users') || '[]');
-    const user = users.find(u => u.username === username && u.password === simpleHash(password));
+  const login = async (email, password) => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-    if (!user) {
-      throw new Error('Invalid username or password');
-    }
+    if (error) throw error;
 
-    const userWithoutPassword = { ...user };
-    delete userWithoutPassword.password;
-    setCurrentUser(userWithoutPassword);
-    localStorage.setItem('f1_current_user', JSON.stringify(userWithoutPassword));
-
-    return userWithoutPassword;
+    await loadUserProfile(data.user.id);
+    return data.user;
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await supabase.auth.signOut();
     setCurrentUser(null);
-    localStorage.removeItem('f1_current_user');
+    setUserProfile(null);
   };
 
-  const updateUser = (updates) => {
-    const users = JSON.parse(localStorage.getItem('f1_users') || '[]');
-    const userIndex = users.findIndex(u => u.id === currentUser.id);
-    
-    if (userIndex !== -1) {
-      users[userIndex] = { ...users[userIndex], ...updates };
-      localStorage.setItem('f1_users', JSON.stringify(users));
-      
-      const updatedUser = { ...users[userIndex] };
-      delete updatedUser.password;
-      setCurrentUser(updatedUser);
-      localStorage.setItem('f1_current_user', JSON.stringify(updatedUser));
+  const updateUser = async (updates) => {
+    if (!currentUser) return;
+
+    // If updating predictions
+    if (updates.predictions) {
+      // Save each prediction to database
+      for (const [raceId, racePreds] of Object.entries(updates.predictions)) {
+        if (racePreds.main) {
+          await predictionsService.savePrediction(
+            currentUser.id,
+            parseInt(raceId),
+            'main',
+            racePreds.main.first,
+            racePreds.main.second,
+            racePreds.main.third
+          );
+        }
+        if (racePreds.sprint) {
+          await predictionsService.savePrediction(
+            currentUser.id,
+            parseInt(raceId),
+            'sprint',
+            racePreds.sprint.first,
+            racePreds.sprint.second,
+            racePreds.sprint.third
+          );
+        }
+      }
     }
+
+    // If updating champion picks
+    if (updates.championDriver !== undefined || updates.championConstructor !== undefined) {
+      await usersService.updateChampionPicks(
+        currentUser.id,
+        updates.championDriver ?? userProfile.championDriver,
+        updates.championConstructor ?? userProfile.championConstructor
+      );
+    }
+
+    // Reload profile to get fresh data
+    await loadUserProfile(currentUser.id);
   };
 
   const isChampionSelectionLocked = () => {
@@ -109,12 +184,11 @@ export const AuthProvider = ({ children }) => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     firstRaceDate.setHours(0, 0, 0, 0);
-    
     return today >= firstRaceDate;
   };
 
   const value = {
-    currentUser,
+    currentUser: userProfile, // Components expect this format
     loading,
     register,
     login,

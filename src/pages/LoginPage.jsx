@@ -6,10 +6,11 @@ import { f1Drivers, f1Teams } from '@/data/f1Data';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import { motion } from 'framer-motion';
-import { Trophy, User, Lock, Flag } from 'lucide-react';
+import { Trophy, User, Lock, Flag, Mail } from 'lucide-react';
 
 const LoginPage = () => {
   const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [championDriver, setChampionDriver] = useState('');
@@ -23,41 +24,62 @@ const LoginPage = () => {
   }
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
+  e.preventDefault();
 
-    try {
-      if (isLogin) {
-        await login(username, password);
-        toast({
-          title: "Welcome back!",
-          description: "You have successfully logged in.",
-        });
-        navigate('/');
-      } else {
-        if (!championDriver || !championConstructor) {
-          toast({
-            title: "Missing selections",
-            description: "Please select both champion driver and constructor.",
-            variant: "destructive"
-          });
-          return;
-        }
-
-        await register(username, password, parseInt(championDriver), parseInt(championConstructor));
-        toast({
-          title: "Account created!",
-          description: "Your predictions have been saved.",
-        });
-        navigate('/');
-      }
-    } catch (error) {
+  try {
+    if (isLogin) {
+      // LOGIN: use email + password
+      await login(email, password);
       toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive"
+        title: "Welcome back!",
+        description: "You have successfully logged in.",
       });
+      navigate('/');
+    } else {
+      // REGISTER: validate all fields
+      if (!email) {
+        toast({
+          title: "Email required",
+          description: "Please enter your email address.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (!username) {
+        toast({
+          title: "Username required",
+          description: "Please choose a username.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (!championDriver || !championConstructor) {
+        toast({
+          title: "Missing selections",
+          description: "Please select both champion driver and constructor.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // REGISTER: email, password, username, championDriver, championConstructor
+      await register(email, password, username, parseInt(championDriver), parseInt(championConstructor));
+      toast({
+        title: "Account created!",
+        description: "Your predictions have been saved.",
+      });
+      navigate('/');
     }
-  };
+  } catch (error) {
+    toast({
+      title: "Error",
+      description: error.message,
+      variant: "destructive"
+    });
+  }
+};
 
   return (
     <>
@@ -84,20 +106,39 @@ const LoginPage = () => {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Email field - always shown */}
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  <User className="w-4 h-4 inline mr-2" />
-                  Username
+                  <Mail className="w-4 h-4 inline mr-2" />
+                  Email
                 </label>
                 <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   required
                   className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 transition-all"
-                  placeholder="Enter your username"
+                  placeholder="your@email.com"
                 />
               </div>
+
+              {/* Username field - only shown for registration */}
+              {!isLogin && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    <User className="w-4 h-4 inline mr-2" />
+                    Username
+                  </label>
+                  <input
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    required
+                    className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-red-500 transition-all"
+                    placeholder="Choose a username"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Helmet } from 'react-helmet';
 import { motion } from 'framer-motion';
 import { Calendar, MapPin, Flag, Zap, MessageSquare, Send } from 'lucide-react';
@@ -7,6 +7,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/components/ui/use-toast';
 import Layout from '@/components/Layout';
+import { commentsService } from '@/services/commentsService';
 
 const CalendarPage = () => {
   const { isAuthenticated, currentUser } = useAuth();
@@ -14,32 +15,40 @@ const CalendarPage = () => {
   const [viewMode, setViewMode] = useState('grid');
   const [selectedRace, setSelectedRace] = useState(null);
   const [commentText, setCommentText] = useState('');
+  const [raceComments, setRaceComments] = useState({});
 
-  const getRaceComments = (raceId) => {
-    const stored = localStorage.getItem(`race_comments_${raceId}`);
-    return stored ? JSON.parse(stored) : [];
-  };
+  const loadRaceComments = async (raceId) => {
+  try {
+    const comments = await commentsService.getRaceComments(raceId);
+    setRaceComments(prev => ({
+      ...prev,
+      [raceId]: comments
+    }));
+  } catch (error) {
+    console.error('Error loading comments:', error);
+  }
+};
 
-  const addComment = (raceId) => {
-    if (!isAuthenticated) {
-      toast({
-        title: "Login required",
-        description: "Please login to comment",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    if (!commentText.trim()) return;
-
-    const comments = getRaceComments(raceId);
-    comments.push({
-      username: currentUser.username,
-      text: commentText,
-      timestamp: new Date().toISOString()
+  const addComment = async (raceId) => {
+  if (!isAuthenticated) {
+    toast({
+      title: "Login required",
+      description: "Please login to comment",
+      variant: "destructive"
     });
+    return;
+  }
+
+  if (!commentText.trim()) return;
+
+  try {
+    await commentsService.addComment(
+      currentUser.id,
+      currentUser.username,
+      raceId,
+      commentText
+    );
     
-    localStorage.setItem(`race_comments_${raceId}`, JSON.stringify(comments));
     setCommentText('');
     
     toast({
@@ -47,9 +56,24 @@ const CalendarPage = () => {
       description: "Your comment has been added",
     });
     
-    setSelectedRace(null);
-    setTimeout(() => setSelectedRace(raceId), 10);
-  };
+    // Reload comments for this race
+    await loadRaceComments(raceId);
+  } catch (error) {
+    console.error('Error posting comment:', error);
+    toast({
+      title: "Error",
+      description: "Failed to post comment. Please try again.",
+      variant: "destructive"
+    });
+  }
+};
+
+// Load comments when a race is selected
+useEffect(() => {
+  if (selectedRace) {
+    loadRaceComments(selectedRace);
+  }
+}, [selectedRace]);
 
   const getPodium = (raceId) => {
     const result = raceResults[raceId];
@@ -90,7 +114,7 @@ const CalendarPage = () => {
 
     const status = getRaceStatus(race);
     const podium = getPodium(id);
-    const comments = getRaceComments(id);
+    const comments = raceComments[id] || [];
     const isExpanded = selectedRace === id;
 
     const statusConfig = {
@@ -208,14 +232,14 @@ const CalendarPage = () => {
                   {/* Comments list */}
                   <div className="space-y-2 max-h-64 overflow-y-auto">
                     {comments.map((comment, index) => (
-                      <div key={index} className="bg-white/5 rounded-lg p-3">
+                      <div key={comment.id || index} className="bg-white/5 rounded-lg p-3">
                         <div className="flex items-center justify-between mb-1">
                           <span className="font-semibold text-white text-sm">{comment.username}</span>
                           <span className="text-xs text-gray-500">
-                            {new Date(comment.timestamp).toLocaleDateString()}
+                            {new Date(comment.created_at).toLocaleDateString()}
                           </span>
                         </div>
-                        <p className="text-gray-300 text-sm">{comment.text}</p>
+                        <p className="text-gray-300 text-sm">{comment.content}</p>
                       </div>
                     ))}
                   </div>

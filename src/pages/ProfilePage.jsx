@@ -8,14 +8,29 @@ import { useAuth } from '@/context/AuthContext';
 import Layout from '@/components/Layout';
 
 const ProfilePage = () => {
-  const { currentUser, isAuthenticated } = useAuth();
+  const { currentUser, isAuthenticated, loading } = useAuth();
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
+  // Show loading spinner while checking auth
+if (loading) {
+  return (
+    <Layout>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-500 mx-auto mb-4"></div>
+          <p className="text-white">Loading profile...</p>
+        </div>
+      </div>
+    </Layout>
+  );
+}
 
-  const championDriver = getDriverById(currentUser.championDriver);
-  const championTeam = getTeamById(currentUser.championConstructor);
+// Redirect if not logged in
+if (!isAuthenticated) {
+  return <Navigate to="/login" replace />;
+}
+
+  const championDriver = getDriverById(currentUser?.championDriver);
+  const championTeam = getTeamById(currentUser?.championConstructor);
   const driverTeam = championDriver ? getTeamById(championDriver.teamId) : null;
 
   // Calculate user statistics
@@ -25,28 +40,42 @@ const ProfilePage = () => {
     let correctPredictions = 0;
     let totalPredictionAttempts = 0;
 
-    if (currentUser.predictions) {
-      Object.entries(currentUser.predictions).forEach(([raceId, prediction]) => {
+    if (currentUser?.predictions) {
+      Object.entries(currentUser.predictions).forEach(([raceId, racePreds]) => {
         const result = raceResults[parseInt(raceId)];
         if (result) {
-          racesPredicted++;
-          const actualPodium = result.podium.slice(0, 3).map(p => p.driverId);
-          
-          let correctCount = 0;
-          if (prediction.first === actualPodium[0]) { correctCount++; correctPredictions++; }
-          if (prediction.second === actualPodium[1]) { correctCount++; correctPredictions++; }
-          if (prediction.third === actualPodium[2]) { correctCount++; correctPredictions++; }
-          
-          totalPredictionAttempts += 3;
+          // Main Race Calculation
+          if (racePreds.main && result.mainRace) {
+            racesPredicted++;
+            const actualPodium = result.mainRace.podium.slice(0, 3).map(p => p.driverId);
+            
+            let correctCount = 0;
+            if (racePreds.main.first === actualPodium[0]) { correctCount++; correctPredictions++; }
+            if (racePreds.main.second === actualPodium[1]) { correctCount++; correctPredictions++; }
+            if (racePreds.main.third === actualPodium[2]) { correctCount++; correctPredictions++; }
+            
+            totalPredictionAttempts += 3;
+            
+            const scoring = pointsSystem.predictionScoring.main;
+            const pointsMap = { 0: 0, 1: scoring.one, 2: scoring.two, 3: scoring.three };
+            totalPoints += pointsMap[correctCount];
+          }
 
-          const pointsMap = {
-            0: 0,
-            1: pointsSystem.predictionScoring.oneCorrect,
-            2: pointsSystem.predictionScoring.twoCorrect,
-            3: pointsSystem.predictionScoring.threeCorrect
-          };
-
-          totalPoints += pointsMap[correctCount];
+          // Sprint Race Calculation  
+          if (racePreds.sprint && result.sprint) {
+            const actualPodium = result.sprint.podium.slice(0, 3).map(p => p.driverId);
+            
+            let correctCount = 0;
+            if (racePreds.sprint.first === actualPodium[0]) { correctCount++; correctPredictions++; }
+            if (racePreds.sprint.second === actualPodium[1]) { correctCount++; correctPredictions++; }
+            if (racePreds.sprint.third === actualPodium[2]) { correctCount++; correctPredictions++; }
+            
+            totalPredictionAttempts += 3;
+            
+            const scoring = pointsSystem.predictionScoring.sprint;
+            const pointsMap = { 0: 0, 1: scoring.one, 2: scoring.two, 3: scoring.three };
+            totalPoints += pointsMap[correctCount];
+          }
         }
       });
     }
@@ -58,9 +87,9 @@ const ProfilePage = () => {
     return {
       totalPoints,
       racesPredicted,
-      accuracy,
       correctPredictions,
-      totalPredictionAttempts
+      totalPredictionAttempts,
+      accuracy
     };
   };
 
@@ -85,7 +114,7 @@ const ProfilePage = () => {
                 <User className="w-12 h-12 text-white" />
               </div>
               <div>
-                <h1 className="text-4xl font-bold text-white mb-2">{currentUser.username}</h1>
+                <h1 className="text-4xl font-bold text-white mb-2">{currentUser?.username || 'User'}</h1>
                 <p className="text-gray-400">
                   Member since {new Date(currentUser.createdAt).toLocaleDateString('en-US', { 
                     month: 'long', 
