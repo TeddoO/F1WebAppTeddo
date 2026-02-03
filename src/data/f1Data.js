@@ -9,7 +9,8 @@ export const f1Teams = [
   { id: 7, name: "Williams", color: "#005AFF", textColor: "#FFFFFF" },
   { id: 8, name: "Haas F1 Team", color: "#B6BABD", textColor: "#000000" },
   { id: 9, name: "RB", color: "#6692FF", textColor: "#FFFFFF" },
-  { id: 10, name: "Audi", color: "#C0C0C0", textColor: "#000000" }
+  { id: 10, name: "Audi", color: "#C0C0C0", textColor: "#000000" },
+  { id: 11, name: "Cadillac F1 Team", color: "#1d1d1d", textColor: "#ffffff" }
 ];
 
 export const f1Drivers = [
@@ -42,7 +43,10 @@ export const f1Drivers = [
   { id: 18, name: "Arvid Lindblad", teamId: 9, number: 41 },
   // Audi
   { id: 19, name: "Nico Hulkenberg", teamId: 10, number: 27 },
-  { id: 20, name: "Gabriel Bortoleto", teamId: 10, number: 5 }
+  { id: 20, name: "Gabriel Bortoleto", teamId: 10, number: 5 },
+  //Caillac
+  { id: 21, name: "Sergio Perez", teamId: 11, number: 11 },
+  { id: 22, name: "Valtteri Bottas", teamId: 11, number: 77 }
 ];
 
 export const f1Calendar = [
