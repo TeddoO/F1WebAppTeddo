@@ -21,16 +21,16 @@ export const f1Drivers = [
   { id: 4, name: "Oscar Piastri", teamId: 2, number: 81 },
   // Mercedes
   { id: 5, name: "George Russell", teamId: 3, number: 63 },
-  { id: 6, name: "Andrea Kimi Antonelli", teamId: 3, number: 12 },
+  { id: 6, name: "Kimi Antonelli", teamId: 3, number: 12 },
   // Red Bull
-  { id: 7, name: "Max Verstappen", teamId: 4, number: 1 },
-  { id: 8, name: "Liam Lawson", teamId: 4, number: 30 },
+  { id: 7, name: "Max Verstappen", teamId: 4, number: 3 },
+  { id: 8, name: "Isack Hadjar", teamId: 4, number: 6 },
   // Aston Martin
   { id: 9, name: "Fernando Alonso", teamId: 5, number: 14 },
   { id: 10, name: "Lance Stroll", teamId: 5, number: 18 },
   // Alpine
   { id: 11, name: "Pierre Gasly", teamId: 6, number: 10 },
-  { id: 12, name: "Jack Doohan", teamId: 6, number: 7 },
+  { id: 12, name: "Franco Colapinto", teamId: 6, number: 43 },
   // Williams
   { id: 13, name: "Carlos Sainz", teamId: 7, number: 55 },
   { id: 14, name: "Alex Albon", teamId: 7, number: 23 },
@@ -38,8 +38,8 @@ export const f1Drivers = [
   { id: 15, name: "Oliver Bearman", teamId: 8, number: 87 },
   { id: 16, name: "Esteban Ocon", teamId: 8, number: 31 },
   // RB
-  { id: 17, name: "Yuki Tsunoda", teamId: 9, number: 22 },
-  { id: 18, name: "Isack Hadjar", teamId: 9, number: 6 },
+  { id: 17, name: "Liam Lawson", teamId: 9, number: 30 },
+  { id: 18, name: "Arvid Lindblad", teamId: 9, number: 41 },
   // Audi
   { id: 19, name: "Nico Hulkenberg", teamId: 10, number: 27 },
   { id: 20, name: "Gabriel Bortoleto", teamId: 10, number: 5 }
